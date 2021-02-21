@@ -6,7 +6,16 @@ function AVector(x, y) {    //help: https://gist.github.com/winduptoy/a1aa09c349
 // Instance methods
 AVector.prototype = {
     angle: function(type=0) {
-        //let a = -Math.atan2(-this.y, this.x);  goes to negative angles for negative y's (max is PI/2 to each side)
+        // goes to negative angles for negative y's (max is PI/2 to each side)
+        // alternative writing (until now it has the same effect i think): -atan2(-y, x)
+        let a = Math.atan2(this.y, this.x);
+        switch (type) {
+            case 1: return a/2/Math.PI*360;
+            case 2: return a/Math.PI;
+            default: return a;
+        }
+    },
+    angleFull: function(type=0) {
         let a;
         a = Math.atan(this.y / this.x);
         if (this.x < 0)
