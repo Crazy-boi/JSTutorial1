@@ -69,13 +69,19 @@ const player = new Player();
 
 // bubbles
 const bubbles = [];
+
+const bubblePop0 = document.createElement("audio"); bubblePop0.src = "res/pop_mid.ogg";
+const bubblePop1 = document.createElement("audio"); bubblePop1.src = "res/pop_low1.ogg";
+const bubblePop2 = document.createElement("audio"); bubblePop2.src = "res/pop_low2.ogg";
+const bubblePop3 = document.createElement("audio"); bubblePop3.src = "res/pop_high1.ogg";
+
 class Bubble {
     constructor() {
         this.radius = 50;
         this.p = new AVector(Math.random() * canvas.width, canvas.height + this.radius);
         this.speed = Math.random() * 5 + 1;
-
-        this.sound = "pop_sound" + (Math.random() * 4);
+        this.counted = false;
+        this.sound = Math.floor(Math.random() * 4);
     }
     update() {
         this.p.sub(0, this.speed);
@@ -90,9 +96,6 @@ class Bubble {
     }
 }
 
-const bubblePop1 = document.createElement("audio");
-bubblePop1.src = "res/pop.ogg";
-
 function handleBubbles() {
     if (gameFrame % 100 === 0) {
         bubbles.push(new Bubble());
@@ -103,11 +106,23 @@ function handleBubbles() {
         bubbles[i].draw();
     }
     for (let i = 0; i < bubbles.length; i++) {
-        if (bubbles[i].p.y + bubbles[i].radius < 0)
+        if (bubbles[i].p.y + bubbles[i].radius < 0) {
             bubbles.splice(i, 1);
-        if (bubbles[i].p.dist(player.p) < bubbles[i].radius + player.radius) {
-            score++;
-            bubbles.splice(i, 1);
+        } else if (bubbles[i].p.dist(player.p) < bubbles[i].radius + player.radius) {
+            if (!bubbles[i].counted) {
+                console.log(bubbles[i].sound)
+                if (bubbles[i].sound === 0)
+                    bubblePop0.play();
+                else if (bubbles[i].sound === 1)
+                    bubblePop1.play();
+                else if (bubbles[i].sound === 2)
+                    bubblePop2.play();
+                else if (bubbles[i].sound === 3)
+                    bubblePop3.play();
+                score++;
+                bubbles[i].counted = true;
+                bubbles.splice(i, 1);
+            }
         }
     }
 }
