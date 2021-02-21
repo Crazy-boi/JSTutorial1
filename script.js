@@ -18,18 +18,16 @@ let canvasPosition = canvas.getBoundingClientRect();
 
 const mouse = {
     p: new AVector(canvas.width/2, canvas.height/2),
-    click: false,
-    move: true
+    movePlayer: true
 }
 
 canvas.addEventListener("mousedown", function (event) {
     if (event.button === 2)
         return;
-    mouse.click = true;
+    mouse.movePlayer = true;
     mouse.p.set(event.x - canvasPosition.left, event.y - canvasPosition.top);
 });
 canvas.addEventListener("mouseup", function () {
-    mouse.click = false;
 });
 
 // player
@@ -51,13 +49,12 @@ class Player {
         const d = AVector.sub(this.p, mouse.p);
         if (d.length() > 1)
             this.angle = d.angle();
-        else
-
-        this.p.sub(d.div(25, 24));
-        // get fish out of sky
-        if (this.p.y < 150) {
-            this.p.add(0, (150 - this.p.y) / 50);
-        }
+        if (this.p.y < 80)
+            mouse.movePlayer = false;
+        if (mouse.movePlayer)
+            this.p.sub(d.div(25, 24));
+        if (this.p.y < 150)
+            this.p.add(0, (150 - this.p.y) / 100);
     }
     draw() {
         /*ctx.lineWidth = 1.7;
@@ -84,6 +81,8 @@ const player = new Player();
 // bubbles
 const bubbles = [];
 
+const bubbleImage = new Image(); bubbleImage.src = "res/bubble_pop.png";
+
 let bubblePop = [];
 const bpFile = ["res/pop_mid.ogg","res/pop_low1.ogg","res/pop_low2.ogg","res/pop_high1.ogg"]
 for (let i = 0; i < bpFile.length; i++) {
@@ -97,19 +96,42 @@ class Bubble {
         this.p = new AVector(Math.random() * canvas.width, canvas.height + this.radius);
         this.speed = Math.random() * 5 + 1;
         this.sound = Math.floor(Math.random() * bpFile.length);
+        this.counted = false;
+        this.frameX = 0;
+        this.frameY = 0;
+        this.frame = 0;
+        this.popDelay = 5;
+        this.popCounter = 0;
+        this.spriteWidth = 512;
+        this.spriteHeight = 512;
     }
     update() {
         this.p.sub(0, this.speed);
+        if (this.counted) {
+            console.log(this.popCounter, this.frame, this.frameX, this.frameY)
+            this.popCounter++;
+            if (this.popCounter === this.popDelay && this.frame < 5) {
+                this.popCounter = 0;
+                this.frame++;
+                this.frameX++;
+                if (this.frameX === 3) {
+                    this.frameX = 0;
+                    this.frameY++;
+                }
+            }
+        }
     }
     draw() {
-        ctx.fillStyle = "blue";
+        /*ctx.fillStyle = "blue";
         ctx.lineWidth = 1;
         ctx.strokeStyle = "black";
         ctx.beginPath();
         ctx.arc(this.p.x, this.p.y, this.radius, 0, 2*pi);
         ctx.fill();
         ctx.closePath();
-        ctx.stroke();
+        ctx.stroke();*/
+        ctx.drawImage(bubbleImage, this.frameX * this.spriteWidth, this.frameY * this.spriteHeight, this.spriteWidth, this.spriteHeight,
+            this.p.x - this.radius * 1.4, this.p.y - this.radius * 1.4, this.radius * 2.8, this.radius * 2.8);
     }
 }
 
@@ -117,16 +139,18 @@ function handleBubbles() {
     if (gameFrame % 100 === 0) {
         bubbles.push(new Bubble());
     }
-    // drawing and splicing in the same loop makes bubbles blink (cause?)
     for (let i = 0; i < bubbles.length; i++) {
         bubbles[i].update();
         bubbles[i].draw();
-        if (bubbles[i].p.y + bubbles[i].radius < 0) {
+        if (bubbles[i].p.y + bubbles[i].radius < 0 ||
+            (bubbles[i].frame === 5 && bubbles[i].popCounter === bubbles[i].popDelay)) {
             bubbles.splice(i, 1);
-        } else if (bubbles[i].p.dist(player.p) < bubbles[i].radius + player.radius) {
+        } else if (!bubbles[i].counted && bubbles[i].p.dist(player.p) < bubbles[i].radius + player.radius) {
             //bubblePop[bubbles[i].sound].play();
             score++;
-            bubbles.splice(i, 1);
+            bubbles[i].counted = true;
+            bubbles[i].frame = 1;
+            bubbles[i].frameX = 1;
         } else continue;
         i--;
     }
