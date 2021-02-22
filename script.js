@@ -7,11 +7,16 @@ const ctx = canvas.getContext('2d');
 canvas.width = 1280;
 canvas.height = 720;
 
-let score = 0;
+let score = 0, missed = 0;
+let gameOver = false, gameOverAtMissed = 20;
+let resetClick = 0;
+const resetClicksNeeded = 5;
+
 let gameFrame = 0;
 ctx.font = "50px Georgia";
 
-let gameSpeed = 0.5;
+const gameSpeed0 = 0.5;
+let gameSpeed = gameSpeed0;
 
 // mouse interactivity
 let canvasPosition = canvas.getBoundingClientRect();
@@ -24,10 +29,24 @@ const mouse = {
 canvas.addEventListener("mousedown", function (event) {
     if (event.button === 2)
         return;
+    if (gameOver) {
+        if (resetClick < resetClicksNeeded-1) {
+            resetClick++;
+            return;
+        } else resetClick = 0;
+        gameOver = false;
+        score = 0;
+        missed = 0;
+        gameSpeed = gameSpeed0;
+        gameFrame = 0;
+        mouse.p.set(canvas.width/2, canvas.height/2);
+        player.p.set(canvas.width/2, canvas.height/2);
+        player.angle = 0;
+        bubbles = [];
+        return;
+    }
     mouse.movePlayer = true;
     mouse.p.set(event.x - canvasPosition.left, event.y - canvasPosition.top);
-});
-canvas.addEventListener("mouseup", function () {
 });
 
 // player
@@ -39,9 +58,9 @@ class Player {
         this.p = new AVector(canvas.width/2, canvas.height/2);
         this.radius = 50;
         this.angle = 0;
+        this.speedDiv = 25;
         this.frameX = 0;
         this.frameY = 0;
-        this.frame = 0;
         this.spriteWidth = 498;
         this.spriteHeight = 327;
     }
@@ -52,17 +71,18 @@ class Player {
         if (this.p.y < 80)
             mouse.movePlayer = false;
         if (mouse.movePlayer)
-            this.p.sub(d.div(25, 24));
+            this.p.sub(d.div(this.speedDiv, this.speedDiv - 1));
         if (this.p.y < 150)
             this.p.add(0, (150 - this.p.y) / 100);
+
+        if (gameFrame % Math.round(this.speedDiv / 2) === 0) {
+            this.frameX++;
+            this.frameY += this.frameX > 3 ? 1 : 0;
+            this.frameX %= 4;
+            this.frameY %= 3;
+        }
     }
     draw() {
-        /*ctx.lineWidth = 1.7;
-        ctx.strokeStyle = "orange";
-        ctx.beginPath();
-        ctx.arc(this.p.x, this.p.y, this.radius, 0, 2*pi);
-        //ctx.closePath();
-        ctx.stroke();*/
         ctx.save();
         ctx.translate(this.p.x, this.p.y);
         ctx.rotate(this.angle);
@@ -79,7 +99,7 @@ class Player {
 const player = new Player();
 
 // bubbles
-const bubbles = [];
+let bubbles = [];
 
 const bubbleImage = new Image(); bubbleImage.src = "res/bubble_pop.png";
 
@@ -94,30 +114,24 @@ class Bubble {
     constructor() {
         this.radius = 50;
         this.p = new AVector(Math.random() * canvas.width, canvas.height + this.radius);
-        this.speed = Math.random() * 5 + 1;
+        this.speed = Math.random() * 3 + 1 + gameSpeed;
         this.sound = Math.floor(Math.random() * bpFile.length);
         this.counted = false;
         this.frameX = 0;
         this.frameY = 0;
         this.frame = 0;
-        this.popDelay = 5;
-        this.popCounter = 0;
+        this.popDelay = Math.floor(Math.random() * 6 + 4);
         this.spriteWidth = 512;
         this.spriteHeight = 512;
     }
     update() {
         this.p.sub(0, this.speed);
         if (this.counted) {
-            console.log(this.popCounter, this.frame, this.frameX, this.frameY)
-            this.popCounter++;
-            if (this.popCounter === this.popDelay && this.frame < 5) {
-                this.popCounter = 0;
+            if (gameFrame % this.popDelay === 0 && this.frame < 5) {
                 this.frame++;
                 this.frameX++;
-                if (this.frameX === 3) {
-                    this.frameX = 0;
-                    this.frameY++;
-                }
+                this.frameY += this.frameX > 2 ? 1 : 0;
+                this.frameX %= 3;
             }
         }
     }
@@ -143,11 +157,23 @@ function handleBubbles() {
         bubbles[i].update();
         bubbles[i].draw();
         if (bubbles[i].p.y + bubbles[i].radius < 0 ||
-            (bubbles[i].frame === 5 && bubbles[i].popCounter === bubbles[i].popDelay)) {
+            (bubbles[i].frame === 5 && gameFrame % bubbles[i].popDelay === 1)) {
+            if (!bubbles[i].counted) {
+                missed++;
+                if (missed === gameOverAtMissed) {      // Game over
+                    gameOver = true;
+                    let s = document.cookie;
+                    if (s == null || !s.includes("highscore") || s.split("=")[1] < score)
+                        document.cookie = "highscore=" + score;
+                    console.log(s)
+                }
+            }
             bubbles.splice(i, 1);
         } else if (!bubbles[i].counted && bubbles[i].p.dist(player.p) < bubbles[i].radius + player.radius) {
-            //bubblePop[bubbles[i].sound].play();
+            bubblePop[bubbles[i].sound].play();
             score++;
+            gameSpeed += 0.01;
+
             bubbles[i].counted = true;
             bubbles[i].frame = 1;
             bubbles[i].frameX = 1;
@@ -197,30 +223,44 @@ let lastCheck = Date.now();
 let checks = 0, drawFPS = 0;
 
 function animate() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (gameOver) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.002)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "rgb(72,189,210)";
+        ctx.fillRect(300, 170, 600, 400);
+        ctx.fillStyle = "white";
+        ctx.fillText("Game Over", canvas.width/2 - 220, canvas.height/2 - 100);
+        let highScore = document.cookie.split("=")[1];
+        let msg = highScore > score ? "Highscore: "+highScore : "New Highscore!";
+        ctx.fillText(msg, canvas.width/2 - 220, canvas.height/2);
+        ctx.fillText("[click "+(resetClicksNeeded-resetClick)+" times]", canvas.width/2 - 220, canvas.height/2 + 130);
+    } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    handleBackground();
+        handleBackground();
 
-    handleBubbles();
+        handleBubbles();
 
-    player.update();
-    player.draw();
+        player.update();
+        player.draw();
 
-    ctx.fillStyle = "white";
-    ctx.fillText("score: " + score, 25, canvas.height - 30);
+        ctx.fillStyle = "white";
+        ctx.fillText("score: " + score, 25, canvas.height - 90);
+        ctx.fillText("missed: " + missed + "/" + gameOverAtMissed, 25, canvas.height - 30);
 
-    gameFrame++;
+        gameFrame++;
 
-    //extra stuff
-    /*checks++;
-    if (checks > 20) {
-        drawFPS = Math.round(checks/((Date.now() - lastCheck)/1000.0));
-        lastCheck = Date.now();
-        checks = 0;
+        //extra stuff
+        /*checks++;
+        if (checks > 20) {
+            drawFPS = Math.round(checks/((Date.now() - lastCheck)/1000.0));
+            lastCheck = Date.now();
+            checks = 0;
+        }
+        ctx.fillStyle = "black";
+        ctx.fillText(drawFPS + " fps; "+Math.round(player.angle/2/pi*360), 10, canvas.height-20);
+        */
     }
-    ctx.fillStyle = "black";
-    ctx.fillText(drawFPS + " fps; "+Math.round(player.angle/2/pi*360), 10, canvas.height-20);
-    */
 
     requestAnimationFrame(animate);
 }
